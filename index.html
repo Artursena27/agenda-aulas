@@ -57,7 +57,7 @@ a.slot:hover,a.slot:focus-visible{background:#FFE08A;outline:none}
 </main>
 
 <script>
-// Edite aqui: true = ocupado
+// Horários de reserva (usados se a plataforma estiver fora do ar)
 var AGENDA = [
   {d:1, nome:'Segunda', sub:'18h às 21h', slots:[['18h',false],['19h',false],['20h',false]]},
   {d:2, nome:'Terça',   sub:'18h às 21h', slots:[['18h',true],['19h',false],['20h',false]]},
@@ -66,26 +66,40 @@ var AGENDA = [
   {d:5, nome:'Sexta',   sub:'18h às 21h', slots:[['18h',true],['19h',false],['20h',false]]},
   {d:6, nome:'Sábado',  sub:'manhã · 8h às 12h', slots:[['8h',false],['9h',false],['10h',false],['11h',false]]}
 ];
-function fim(h){return (parseInt(h,10)+1)+'h';}
+function fim(h){var m=String(h).match(/(\d+)(?::(\d+))?/);var hh=+m[1]+1,mm=m[2]&&m[2]!=='00'?m[2]:'';return hh+'h'+mm;}
+function rot(h){var m=String(h).match(/(\d+):(\d+)/);return m?(+m[1])+'h'+(m[2]!=='00'?m[2]:''):h;}
+var NOMES=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 var hoje = new Date().getDay();
-var box = document.getElementById('days');
-AGENDA.forEach(function(dia){
-  var el = document.createElement('section');
-  el.className = 'day' + (dia.d===hoje ? ' today' : '');
-  var head = '<div class="dname">'+dia.nome+(dia.d===hoje?'<small>HOJE</small>':'')+'</div><div class="dsub">'+dia.sub+'</div>';
-  var html = head;
-  dia.slots.forEach(function(s){
-    var faixa = s[0]+' – '+fim(s[0]);
-    if(s[1]){
-      html += '<div class="slot busy" aria-label="'+dia.nome+' '+faixa+' ocupado">'+faixa+'<span class="tag">ocupado</span></div>';
-    } else {
-      var msg = encodeURIComponent('Olá! Quero reservar uma aula de matemática '+(dia.d===6?'no ':'na ')+dia.nome.toLowerCase()+' das '+faixa+'.');
-      html += '<a class="slot" href="https://wa.me/5581982267438?text='+msg+'" target="_blank" rel="noopener" aria-label="Reservar '+dia.nome+' '+faixa+'">'+faixa+'<span class="tag">reservar</span></a>';
-    }
+function desenhar(LISTA){
+  var box = document.getElementById('days'); box.innerHTML='';
+  LISTA.forEach(function(dia){
+    var el = document.createElement('section');
+    el.className = 'day' + (dia.d===hoje ? ' today' : '');
+    var html = '<div class="dname">'+dia.nome+(dia.d===hoje?'<small>HOJE</small>':'')+'</div><div class="dsub">'+dia.sub+'</div>';
+    dia.slots.forEach(function(s){
+      var faixa = s[0]+' – '+fim(s[0]);
+      if(s[1]){
+        html += '<div class="slot busy" aria-label="'+dia.nome+' '+faixa+' ocupado">'+faixa+'<span class="tag">ocupado</span></div>';
+      } else {
+        var msg = encodeURIComponent('Olá! Quero reservar uma aula de matemática '+(dia.d===6||dia.d===0?'no ':'na ')+dia.nome.toLowerCase()+' das '+faixa+'.');
+        html += '<a class="slot" href="https://wa.me/5581982267438?text='+msg+'" target="_blank" rel="noopener" aria-label="Reservar '+dia.nome+' '+faixa+'">'+faixa+'<span class="tag">reservar</span></a>';
+      }
+    });
+    el.innerHTML = html; box.appendChild(el);
   });
-  el.innerHTML = html;
-  box.appendChild(el);
-});
+}
+desenhar(AGENDA);
+// Horários ao vivo: vêm da aba "Minha agenda" do professor na plataforma
+fetch('https://matematica-fundamental.vercel.app/api/agenda').then(function(r){return r.json();}).then(function(d){
+  if(!d||!d.horarios||!d.horarios.length) return;
+  var por={}; d.horarios.forEach(function(h){ (por[h.dia]=por[h.dia]||[]).push(h); });
+  var LISTA=[1,2,3,4,5,6,0].filter(function(k){return por[k];}).map(function(k){
+    var hs=por[k].sort(function(a,b){return a.hora<b.hora?-1:1;});
+    var sub=rot(hs[0].hora)+' às '+fim(hs[hs.length-1].hora); if(k===6||k===0) sub=(parseInt(hs[0].hora,10)<12?'manhã · ':'')+sub;
+    return {d:k,nome:NOMES[k],sub:sub,slots:hs.map(function(h){return [rot(h.hora),!!h.ocupado];})};
+  });
+  desenhar(LISTA);
+}).catch(function(){});
 </script>
 </body>
 </html>
